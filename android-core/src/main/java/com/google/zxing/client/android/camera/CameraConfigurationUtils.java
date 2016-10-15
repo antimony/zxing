@@ -16,6 +16,7 @@
 
 package com.google.zxing.client.android.camera;
 
+import android.annotation.TargetApi;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.hardware.Camera;
@@ -36,6 +37,7 @@ import java.util.regex.Pattern;
  *
  * @author Sean Owen
  */
+@TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1)
 public final class CameraConfigurationUtils {
 
   private static final String TAG = "CameraConfiguration";
@@ -61,23 +63,23 @@ public final class CameraConfigurationUtils {
     String focusMode = null;
     if (autoFocus) {
       if (safeMode || disableContinuous) {
-        focusMode = CameraConfigurationUtils.findSettableValue("focus mode",
-                                                               supportedFocusModes,
-                                                               Camera.Parameters.FOCUS_MODE_AUTO);
+        focusMode = findSettableValue("focus mode",
+                                       supportedFocusModes,
+                                       Camera.Parameters.FOCUS_MODE_AUTO);
       } else {
-        focusMode = CameraConfigurationUtils.findSettableValue("focus mode",
-                                                               supportedFocusModes,
-                                                               Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE,
-                                                               Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO,
-                                                               Camera.Parameters.FOCUS_MODE_AUTO);
+        focusMode = findSettableValue("focus mode",
+                                      supportedFocusModes,
+                                      Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE,
+                                      Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO,
+                                      Camera.Parameters.FOCUS_MODE_AUTO);
       }
     }
     // Maybe selected auto-focus but not available, so fall through here:
     if (!safeMode && focusMode == null) {
-      focusMode = CameraConfigurationUtils.findSettableValue("focus mode",
-                                                             supportedFocusModes,
-                                                             Camera.Parameters.FOCUS_MODE_MACRO,
-                                                             Camera.Parameters.FOCUS_MODE_EDOF);
+      focusMode = findSettableValue("focus mode",
+                                    supportedFocusModes,
+                                    Camera.Parameters.FOCUS_MODE_MACRO,
+                                    Camera.Parameters.FOCUS_MODE_EDOF);
     }
     if (focusMode != null) {
       if (focusMode.equals(parameters.getFocusMode())) {
@@ -92,14 +94,14 @@ public final class CameraConfigurationUtils {
     List<String> supportedFlashModes = parameters.getSupportedFlashModes();
     String flashMode;
     if (on) {
-      flashMode = CameraConfigurationUtils.findSettableValue("flash mode",
-                                                             supportedFlashModes,
-                                                             Camera.Parameters.FLASH_MODE_TORCH,
-                                                             Camera.Parameters.FLASH_MODE_ON);
+      flashMode = findSettableValue("flash mode",
+                                    supportedFlashModes,
+                                    Camera.Parameters.FLASH_MODE_TORCH,
+                                    Camera.Parameters.FLASH_MODE_ON);
     } else {
-      flashMode = CameraConfigurationUtils.findSettableValue("flash mode",
-                                                             supportedFlashModes,
-                                                             Camera.Parameters.FLASH_MODE_OFF);
+      flashMode = findSettableValue("flash mode",
+                                    supportedFlashModes,
+                                    Camera.Parameters.FLASH_MODE_OFF);
     }
     if (flashMode != null) {
       if (flashMode.equals(parameters.getFlashMode())) {
@@ -263,10 +265,9 @@ public final class CameraConfigurationUtils {
       Log.i(TAG, "Negative effect already set");
       return;
     }
-    String colorMode =
-        CameraConfigurationUtils.findSettableValue("color effect",
-                                                   parameters.getSupportedColorEffects(),
-                                                   Camera.Parameters.EFFECT_NEGATIVE);
+    String colorMode = findSettableValue("color effect",
+                                         parameters.getSupportedColorEffects(),
+                                         Camera.Parameters.EFFECT_NEGATIVE);
     if (colorMode != null) {
       parameters.setColorEffect(colorMode);
     }
@@ -310,7 +311,7 @@ public final class CameraConfigurationUtils {
       Log.i(TAG, "Supported preview sizes: " + previewSizesString);
     }
 
-    double screenAspectRatio = (double) screenResolution.x / (double) screenResolution.y;
+    double screenAspectRatio = screenResolution.x / (double) screenResolution.y;
 
     // Remove sizes that are unsuitable
     Iterator<Camera.Size> it = supportedPreviewSizes.iterator();
@@ -326,7 +327,7 @@ public final class CameraConfigurationUtils {
       boolean isCandidatePortrait = realWidth < realHeight;
       int maybeFlippedWidth = isCandidatePortrait ? realHeight : realWidth;
       int maybeFlippedHeight = isCandidatePortrait ? realWidth : realHeight;
-      double aspectRatio = (double) maybeFlippedWidth / (double) maybeFlippedHeight;
+      double aspectRatio = maybeFlippedWidth / (double) maybeFlippedHeight;
       double distortion = Math.abs(aspectRatio - screenAspectRatio);
       if (distortion > MAX_ASPECT_DISTORTION) {
         it.remove();

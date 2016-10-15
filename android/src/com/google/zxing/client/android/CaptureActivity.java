@@ -37,6 +37,7 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -87,7 +88,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
   private static final String[] ZXING_URLS = { "http://zxing.appspot.com/scan", "zxing://scan/" };
 
-  public static final int HISTORY_REQUEST_CODE = 0x0000bacc;
+  private static final int HISTORY_REQUEST_CODE = 0x0000bacc;
 
   private static final Collection<ResultMetadataType> DISPLAYABLE_METADATA_TYPES =
       EnumSet.of(ResultMetadataType.ISSUE_NUMBER,
@@ -136,8 +137,6 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     setContentView(R.layout.capture);
 
     hasSurface = false;
-    historyManager = new HistoryManager(this);
-    historyManager.trimHistory();
     inactivityTimer = new InactivityTimer(this);
     beepManager = new BeepManager(this);
     ambientLightManager = new AmbientLightManager(this);
@@ -148,6 +147,10 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   @Override
   protected void onResume() {
     super.onResume();
+    
+    // historyManager must be initialized here to update the history preference
+    historyManager = new HistoryManager(this);
+    historyManager.trimHistory();
 
     // CameraManager must be initialized here, not in onCreate(). This is necessary because we don't
     // want to open the camera driver and measure the screen size if we're going to show the help on
@@ -174,16 +177,6 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
     resetStatusView();
 
-    SurfaceView surfaceView = (SurfaceView) findViewById(R.id.preview_view);
-    SurfaceHolder surfaceHolder = surfaceView.getHolder();
-    if (hasSurface) {
-      // The activity was paused but not stopped, so the surface still exists. Therefore
-      // surfaceCreated() won't be called, so init the camera here.
-      initCamera(surfaceHolder);
-    } else {
-      // Install the callback and wait for surfaceCreated() to init the camera.
-      surfaceHolder.addCallback(this);
-    }
 
     beepManager.updatePrefs();
     ambientLightManager.start(cameraManager);
@@ -196,6 +189,8 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
         && (intent == null || intent.getBooleanExtra(Intents.Scan.SAVE_HISTORY, true));
 
     source = IntentSource.NONE;
+    sourceUrl = null;
+    scanFromWebPageManager = null;
     decodeFormats = null;
     characterSet = null;
 
@@ -218,7 +213,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
             cameraManager.setManualFramingRect(width, height);
           }
         }
-		
+
         if (intent.hasExtra(Intents.Scan.CAMERA_ID)) {
           int cameraId = intent.getIntExtra(Intents.Scan.CAMERA_ID, -1);
           if (cameraId >= 0) {
@@ -257,16 +252,37 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       characterSet = intent.getStringExtra(Intents.Scan.CHARACTER_SET);
 
     }
+
+    SurfaceView surfaceView = (SurfaceView) findViewById(R.id.preview_view);
+    SurfaceHolder surfaceHolder = surfaceView.getHolder();
+    if (hasSurface) {
+      // The activity was paused but not stopped, so the surface still exists. Therefore
+      // surfaceCreated() won't be called, so init the camera here.
+      initCamera(surfaceHolder);
+    } else {
+      // Install the callback and wait for surfaceCreated() to init the camera.
+      surfaceHolder.addCallback(this);
+    }
   }
 
   private int getCurrentOrientation() {
     int rotation = getWindowManager().getDefaultDisplay().getRotation();
-    switch (rotation) {
-      case Surface.ROTATION_0:
-      case Surface.ROTATION_90:
-        return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-      default:
-        return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+    if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+      switch (rotation) {
+        case Surface.ROTATION_0:
+        case Surface.ROTATION_90:
+          return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        default:
+          return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+      }
+    } else {
+      switch (rotation) {
+        case Surface.ROTATION_0:
+        case Surface.ROTATION_270:
+          return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        default:
+          return ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+      }
     }
   }
   
@@ -292,6 +308,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     ambientLightManager.stop();
     beepManager.close();
     cameraManager.closeDriver();
+    //historyManager = null; // Keep for onActivityResult
     if (!hasSurface) {
       SurfaceView surfaceView = (SurfaceView) findViewById(R.id.preview_view);
       SurfaceHolder surfaceHolder = surfaceView.getHolder();
@@ -371,13 +388,11 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
   @Override
   public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-    if (resultCode == RESULT_OK) {
-      if (requestCode == HISTORY_REQUEST_CODE) {
-        int itemNumber = intent.getIntExtra(Intents.History.ITEM_NUMBER, -1);
-        if (itemNumber >= 0) {
-          HistoryItem historyItem = historyManager.buildHistoryItem(itemNumber);
-          decodeOrStoreSavedBitmap(null, historyItem.getResult());
-        }
+    if (resultCode == RESULT_OK && requestCode == HISTORY_REQUEST_CODE && historyManager != null) {
+      int itemNumber = intent.getIntExtra(Intents.History.ITEM_NUMBER, -1);
+      if (itemNumber >= 0) {
+        HistoryItem historyItem = historyManager.buildHistoryItem(itemNumber);
+        decodeOrStoreSavedBitmap(null, historyItem.getResult());
       }
     }
   }
@@ -678,6 +693,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
       if (scanFromWebPageManager != null && scanFromWebPageManager.isScanFromWebPage()) {
         String replyURL = scanFromWebPageManager.buildReplyURL(rawResult, resultHandler);
+        scanFromWebPageManager = null;
         sendReplyMessage(R.id.launch_product_query, replyURL, resultDurationMS);
       }
       

@@ -345,3 +345,21 @@
 
   - Retire actionscript port
   - Small bug fixes
+
+3.2.0 (15 Feb 2015)
+
+  - Several bug fixes, especially for Data Matrix and PDF417 parsing
+  - Retired jruby binding
+  - Barcode Scanner can now disable history
+
+3.2.1 (20 Aug 2015)
+
+  - Small bug fixes
+
+3.3.0 (16 Sep 2016)
+
+  - Minor core API additions like 'Result.getNumBits', raw bytes for Aztec
+  - Small changes for Java 9 compatibility
+  - BS 4.7.6 release with Android API 23 support
+  - TIFF support in online decoder
+  - Many small bug fixes, typo fixes and project build improvements
